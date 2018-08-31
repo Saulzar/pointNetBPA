@@ -81,8 +81,8 @@ if opt.model != '':
     classifier.load_state_dict(torch.load(opt.model))
 
 device = torch.cuda.current_device()
-optimizer = optim.SGD(classifier.parameters(), lr=opt.lr, momentum=0.9)
-#optimizer = optim.Adam(classifier.parameters(), lr=opt.lr)
+#optimizer = optim.SGD(classifier.parameters(), lr=opt.lr, momentum=0.9)
+optimizer = optim.Adam(classifier.parameters(), lr=opt.lr)
 
 classifier.to(device)
 classifier.eval()
