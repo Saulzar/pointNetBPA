@@ -19,28 +19,34 @@ import torch.nn.functional as F
 
 
 def normalization(n):
-    def id(x):
-        return x
-    return id
+    return nn.BatchNorm1d(n)
+#    return nn.GroupNorm(num_groups = int(n/16), num_channels=n)
+
+
+    # def id(x):
+    #     return x
+    # return id
 
 
 class STN3d(nn.Module):
-    def __init__(self):
+    def __init__(self, n):
         super(STN3d, self).__init__()
-        self.conv1 = torch.nn.Conv1d(3, 64, 1)
-        self.conv2 = torch.nn.Conv1d(64, 128, 1)
-        self.conv3 = torch.nn.Conv1d(128, 1024, 1)
+        self.n = n
+
+        self.conv1 = torch.nn.Conv1d(3, n, 1)
+        self.conv2 = torch.nn.Conv1d(n, n*2, 1)
+        self.conv3 = torch.nn.Conv1d(n*2, n*16, 1)
         self.mp1 = torch.nn.AdaptiveMaxPool1d(1)
-        self.fc1 = nn.Linear(1024, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, 9)
+        self.fc1 = nn.Linear(n*16, n*8)
+        self.fc2 = nn.Linear(n*8, n*4)
+        self.fc3 = nn.Linear(n*4, 9)
         self.relu = nn.ReLU()
 
-        self.bn1 = normalization(64)
-        self.bn2 = normalization(128)
-        self.bn3 = normalization(1024)
-        self.bn4 = normalization(512)
-        self.bn5 = normalization(256)
+        self.bn1 = normalization(n)
+        self.bn2 = normalization(n*2)
+        self.bn3 = normalization(n*16)
+        self.bn4 = normalization(n*8)
+        self.bn5 = normalization(n*4)
 
 
     def forward(self, x):
@@ -49,7 +55,7 @@ class STN3d(nn.Module):
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
         x = self.mp1(x)
-        x = x.view(-1, 1024)
+        x = x.view(-1, self.n*16)
 
         x = F.relu(self.bn4(self.fc1(x)))
         x = F.relu(self.bn5(self.fc2(x)))
@@ -60,20 +66,22 @@ class STN3d(nn.Module):
             iden = iden.cuda()
         x = x + iden
 
-        x = x.view(1, 3, 3)
+        x = x.view(-1, 3, 3)
         return x
 
 
 class PointNetfeat(nn.Module):
-    def __init__(self, global_feat = True):
+    def __init__(self, n, global_feat = True):
         super(PointNetfeat, self).__init__()
-        self.stn = STN3d()
-        self.conv1 = torch.nn.Conv1d(3, 64, 1)
-        self.conv2 = torch.nn.Conv1d(64, 128, 1)
-        self.conv3 = torch.nn.Conv1d(128, 1024, 1)
-        self.bn1 = normalization(64)
-        self.bn2 = normalization(128)
-        self.bn3 = normalization(1024)
+        self.n = n
+
+        self.stn = STN3d(n)
+        self.conv1 = torch.nn.Conv1d(3, n, 1)
+        self.conv2 = torch.nn.Conv1d(n, n*2, 1)
+        self.conv3 = torch.nn.Conv1d(n*2, n*16, 1)
+        self.bn1 = normalization(n)
+        self.bn2 = normalization(n*2)
+        self.bn3 = normalization(n*16)
         self.mp1 = torch.nn.AdaptiveMaxPool1d(1)
         self.global_feat = global_feat
     def forward(self, x):
@@ -87,23 +95,26 @@ class PointNetfeat(nn.Module):
         x = F.relu(self.bn2(self.conv2(x)))
         x = self.bn3(self.conv3(x))
         x = self.mp1(x)
-        x = x.view(-1, 1024)
+        x = x.view(-1, self.n*16)
         if self.global_feat:
             return x, trans
         else:
-            x = x.view(-1, 1024, 1) #.repeat(1, 1, self.num_points)
+            x = x.view(-1, n*16, 1) #.repeat(1, 1, self.num_points)
             return torch.cat([x, pointfeat], 1), trans
 
 class PointNetCls(nn.Module):
-    def __init__(self, k = 2):
+    def __init__(self, n=16, k = 2):
         super(PointNetCls, self).__init__()
-        self.feat = PointNetfeat(global_feat=True)
-        self.fc1 = nn.Linear(1024, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, k)
-        self.bn1 = normalization(512)
-        self.bn2 = normalization(256)
+        self.n = n
+        self.feat = PointNetfeat(n, global_feat=True)
+        self.fc1 = nn.Linear(n*16, n*8)
+        self.fc2 = nn.Linear(n*8, n*4)
+        self.fc3 = nn.Linear(n*4, k)
+        self.bn1 = normalization(n*8)
+        self.bn2 = normalization(n*4)
         self.relu = nn.ReLU()
+
+
     def forward(self, x):
         x, trans = self.feat(x)
         x = F.relu(self.bn1(self.fc1(x)))
@@ -111,30 +122,6 @@ class PointNetCls(nn.Module):
         x = self.fc3(x)
         return F.log_softmax(x, dim=-1), trans
 
-class PointNetDenseCls(nn.Module):
-    def __init__(self, k = 2):
-        super(PointNetDenseCls, self).__init__()
-        self.k = k
-        self.feat = PointNetfeat(global_feat=False)
-        self.conv1 = torch.nn.Conv1d(1088, 512, 1)
-        self.conv2 = torch.nn.Conv1d(512, 256, 1)
-        self.conv3 = torch.nn.Conv1d(256, 128, 1)
-        self.conv4 = torch.nn.Conv1d(128, self.k, 1)
-        self.bn1 = normalization(512)
-        self.bn2 = normalization(256)
-        self.bn3 = normalization(128)
-
-    def forward(self, x):
-        batchsize = x.size()[0]
-        x, trans = self.feat(x)
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
-        x = self.conv4(x)
-        x = x.transpose(2,1).contiguous()
-        x = F.log_softmax(x.view(-1,self.k), dim=-1)
-        x = x.view(batchsize, -1, self.k)
-        return x, trans
 
 
 if __name__ == '__main__':
