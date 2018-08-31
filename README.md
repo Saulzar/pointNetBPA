@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # PointNet.pytorch
 This repo is implementation for PointNet(https://arxiv.org/abs/1612.00593) in pytorch. The model is in `pointnet.py`.
 
@@ -15,7 +14,7 @@ python show_seg.py --model seg/seg_model_20.pth  # show segmentation results
 ```
 
 # Performance
-Without heavy tuning, PointNet can achieve 80-90% performance in classification and segmentaion on this [dataset](http://web.stanford.edu/~ericyi/project_page/part_annotation/index.html). 
+Without heavy tuning, PointNet can achieve 80-90% performance in classification and segmentaion on this [dataset](http://web.stanford.edu/~ericyi/project_page/part_annotation/index.html).
 
 Sample segmentation result:
 ![seg](https://raw.githubusercontent.com/fxia22/pointnet.pytorch/master/misc/show3d.png?token=AE638Oy51TL2HDCaeCF273X_-Bsy6-E2ks5Y_BUzwA%3D%3D)
@@ -25,7 +24,3 @@ Sample segmentation result:
 
 - [Project Page](http://stanford.edu/~rqi/pointnet/)
 - [Tensorflow implementation](https://github.com/charlesq34/pointnet)
-=======
-# pointNetBPA
-BPA point net see title
->>>>>>> 0d3d10ca00421b44cfb3ef613b1a98a9aa6a9a42
